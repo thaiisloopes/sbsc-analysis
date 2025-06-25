@@ -22,12 +22,18 @@ def createGraph(datasetInput):
                 source_id = i[0]
                 target_id = i[1]
                 G.edges[source_id, target_id]['weight'] += 1
+                G.nodes[source_id]['affiliation'] = datasetInput.loc[datasetInput['author'] == source_id]['affiliation'].to_list()[0]
+                G.nodes[target_id]['affiliation'] = datasetInput.loc[datasetInput['author'] == target_id]['affiliation'].to_list()[0]
 
             else:
+                source_id = i[0]
+                target_id = i[1]
                 category = listaRowsVerdade['category'].unique().item()
                 year = listaRowsVerdade['publish-date'].unique().item()
                 language = listaRowsVerdade['language'].unique().item()
                 G.add_edge(i[0], i[1], category = category, year = year, language = language, weight=1)
+                G.nodes[source_id]['affiliation'] = datasetInput.loc[datasetInput['author'] == source_id]['affiliation'].to_list()[0]
+                G.nodes[target_id]['affiliation'] = datasetInput.loc[datasetInput['author'] == target_id]['affiliation'].to_list()[0]
 
     return G
 
@@ -132,7 +138,7 @@ def exportGraph():
 print("===============================================\n")
 # getGraphDetails()
 print("===============================================\n\n\n\n")
-getCentralityMetrics()
+# getCentralityMetrics()
 print("===============================================\n\n\n\n")
 # girvanNewmanCommunityDetection()
 # louvainCommunityDetection()
