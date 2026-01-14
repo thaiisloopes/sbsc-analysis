@@ -6,8 +6,11 @@ from networkx.algorithms.community import louvain_communities
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from sklearn.cluster import SpectralClustering
+from sklearn.datasets import make_blobs
+from collections import defaultdict
 
-sbsc_dataset = pd.read_csv("sbsc_dataset.csv")
+sbsc_dataset = pd.read_csv("sbsc_dataset_normalized.csv")
 
 def createGraph(datasetInput):
     G = nx.Graph()
@@ -39,6 +42,35 @@ def createGraph(datasetInput):
 
 sbsc_graph = createGraph(sbsc_dataset)
 sbsc_compGig = sbsc_graph.subgraph(sorted(nx.connected_components(sbsc_graph))[0])
+
+def count_nodes_edges_by_year(G, year_attr='year'):
+    """
+    Imprime o número de nós e arestas por ano,
+    considerando apenas nós conectados por arestas naquele ano.
+    """
+
+    years = sorted({
+        data[year_attr]
+        for _, _, data in G.edges(data=True)
+        if year_attr in data
+    })
+
+    for year in years:
+        edges_year = [
+            (u, v) for u, v, data in G.edges(data=True)
+            if data.get(year_attr) == year
+        ]
+
+        num_edges = len(edges_year)
+
+        nodes_year = set()
+        for u, v in edges_year:
+            nodes_year.add(u)
+            nodes_year.add(v)
+
+        num_nodes = len(nodes_year)
+
+        print(f"Ano {year}: {num_nodes} nós, {num_edges} arestas")
 
 def getGraphDetails():
     print(f"Numero de nos: {sbsc_graph.number_of_nodes()}\n")
@@ -80,6 +112,45 @@ def getCentralityMetrics():
     print(f"Centralidade de Autovetor: {eigenvector_centrality}\n")
     print(f"No com maior centralidade de autovetor: {max_eigenvector_centrality}\n")
 
+def top10_closeness_centrality(G):
+    closeness = nx.closeness_centrality(G)
+
+    top10 = sorted(
+        closeness.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:10]
+
+    for i, (author, value) in enumerate(top10, 1):
+        print(f"{i}. {author}: {value:.4f}")
+
+def closeness_centrality_like_gephi(G):
+    closeness = {}
+
+    for component in nx.connected_components(G):
+        # Subgrafo do componente
+        G_sub = G.subgraph(component)
+
+        # Closeness normalizada dentro do componente
+        sub_closeness = nx.closeness_centrality(G_sub)
+
+        # Armazenar resultados
+        closeness.update(sub_closeness)
+
+    return closeness
+
+def top10_closeness_like_gephi(G):
+    closeness = closeness_centrality_like_gephi(G)
+
+    top10 = sorted(
+        closeness.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:10]
+
+    for i, (author, value) in enumerate(top10, 1):
+        print(f"{i}. {author}: {value:.4f}")
+
 def girvanNewmanCommunityDetection():
     sbsc_girvan_newman_communities = girvan_newman(sbsc_graph)
 
@@ -90,7 +161,7 @@ def girvanNewmanCommunityDetection():
     print(f"Girvan-Newman communities: {node_groups}\n")
 
 def louvainCommunityDetection():
-    sbsc_louvain_communities = nx.algorithms.community.louvain.louvain_communities(sbsc_graph, weight='weight', resolution=0.7)
+    sbsc_louvain_communities = nx.algorithms.community.louvain.louvain_communities(sbsc_graph, weight='weight', resolution=1.0)
 
     for community in range(len(sbsc_louvain_communities)):
         louvain_communities = sbsc_louvain_communities[community]
@@ -98,8 +169,135 @@ def louvainCommunityDetection():
         sbsc_graph.nodes[author]['group_louvain'] = community
 
     print("Louvain communities: \n\n")
+    print(f"Quantidade de comunidades: {len(sbsc_louvain_communities)}\n")
     for community in sbsc_louvain_communities:
         print(len(community), community)    
+
+def louvain_communities_and_its_authors():
+    # 1. Detecta comunidades com Louvain
+    sbsc_louvain_communities = nx.algorithms.community.louvain.louvain_communities(
+        sbsc_graph,
+        weight='weight',
+        resolution=1.0
+    )
+
+    # 2. Ordena as comunidades por tamanho (ordem decrescente)
+    sbsc_louvain_communities = sorted(
+        sbsc_louvain_communities,
+        key=len,
+        reverse=True
+    )
+
+    # 3. Estrutura para armazenar comunidades e seus autores
+    louvain_communities_dict = {}
+
+    # 4. Atribui rótulos e mantém os nós por comunidade
+    for community_id, community in enumerate(sbsc_louvain_communities):
+        louvain_communities_dict[community_id] = list(community)
+
+        for author in community:
+            sbsc_graph.nodes[author]['group_louvain'] = community_id
+
+    # 5. Relatório
+    print("Louvain communities (ordenadas por tamanho):\n")
+    print(f"Quantidade de comunidades: {len(louvain_communities_dict)}\n")
+
+    for community_id, authors in louvain_communities_dict.items():
+        print(f"Comunidade {community_id} ({len(authors)} nós):")
+        print(authors)
+        print("-" * 60)
+
+    # 6. Retorna a estrutura para uso posterior
+    return louvain_communities_dict
+
+def louvain_communities_count(G, weight=None, resolution=1.0):
+    if G.number_of_nodes() < 2:
+        return 0
+
+    communities = nx.algorithms.community.louvain.louvain_communities(
+        G,
+        weight=weight,
+        resolution=resolution
+    )
+    return len(communities)
+
+def louvain_communities_count_by_year(G, weight=None, resolution=1.0):
+    result = {
+        "total": louvain_communities_count(G, weight, resolution)
+    }
+
+    # Subgrafos por ano
+    edges_by_year = defaultdict(list)
+
+    for u, v, data in G.edges(data=True):
+        if 'year' in data:
+            edges_by_year[data['year']].append((u, v, data))
+
+    for year, edges in sorted(edges_by_year.items()):
+        G_year = nx.Graph()
+        G_year.add_edges_from(edges)
+
+        result[year] = louvain_communities_count(G_year, weight, resolution)
+
+
+    for year, count in result.items():
+        print(f"{year}: {count} comunidades")
+
+def getComponentGigiantAnalysisByYear():
+    # Lista dos anos presentes nas arestas
+    anos = set(nx.get_edge_attributes(sbsc_graph, 'year').values())
+
+    resumo = []
+
+    for ano in sorted(anos):
+        # Filtra arestas do ano
+        arestas_ano = [(u, v) for u, v, d in sbsc_graph.edges(data=True) if d.get('year') == ano]
+        
+        # Cria subgrafo com essas arestas
+        G_ano = nx.Graph()
+        G_ano.add_edges_from(arestas_ano)
+         
+        # Adiciona nós isolados que possam existir no ano
+        autores_ano = set()
+        for u, v in arestas_ano:
+            autores_ano.update([u, v])
+        G_ano.add_nodes_from(autores_ano)
+
+        total_autores = G_ano.number_of_nodes()
+        
+        if total_autores == 0:
+            tamanho_gigante = 0
+            proporcao = 0.0
+        else:
+            # Encontra componente gigante
+            componentes = nx.connected_components(G_ano)
+            gigante = max(componentes, key=len)
+            tamanho_gigante = len(gigante)
+            proporcao = tamanho_gigante / total_autores
+
+        resumo.append({
+            'ano': ano,
+            'autores_totais': total_autores,
+            'tamanho_gigante': tamanho_gigante,
+            'proporcao': proporcao
+        })
+
+    componentes = nx.connected_components(sbsc_graph)
+    maior_componente = max(componentes, key=len)
+    tamanho_gigante_completo = len(maior_componente)
+    resumo.append({
+        'ano': 'Completo',
+        'autores_totais': sbsc_graph.number_of_nodes(),
+        'tamanho_gigante': tamanho_gigante_completo,
+        'proporcao': tamanho_gigante_completo / sbsc_graph.number_of_nodes()
+    })
+
+    # Exibe os resultados formatados
+    for r in resumo:
+        print(f"Ano: {r['ano']}")
+        print(f"Autores totais: {r['autores_totais']}")
+        print(f"Tamanho do componente gigante: {r['tamanho_gigante']}")
+        print(f"Proporção: {r['proporcao'] * 100:.2f}%\n")
 
 def plotCollaborationMatrix():
     degree_list = list(nx.degree(sbsc_graph))
@@ -137,12 +335,20 @@ def exportGraph():
 
 print("===============================================\n")
 # getGraphDetails()
+
+# count_nodes_edges_by_year(sbsc_graph)
 print("===============================================\n\n\n\n")
 # getCentralityMetrics()
+top10_closeness_centrality(sbsc_graph)
+# top10_closeness_like_gephi(sbsc_graph)
 print("===============================================\n\n\n\n")
 # girvanNewmanCommunityDetection()
 # louvainCommunityDetection()
+# louvain_communities_and_its_authors()
+# louvain_communities_count_by_year(sbsc_graph)
+
+# getComponentGigiantAnalysisByYear()
 print("===============================================\n\n\n\n")
 # plotCollaborationMatrix()
 print("===============================================\n\n\n\n")
-# exportGraph()
+exportGraph()

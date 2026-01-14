@@ -17,10 +17,10 @@ def formatar_nome(nome):
 
     return f"{primeiro} {meios} {ultimo}"
 
-df = pd.read_csv("nomes.csv")
+df = pd.read_csv("../nomes.csv")
 
 df["nome"] = df["nome"].apply(formatar_nome)
 
-df.to_csv("nomes_formatados.csv", index=False)
+df.to_csv("../nomes_formatados.csv", index=False)
 
 print("Nomes formatados salvos em nomes_formatados.csv")
