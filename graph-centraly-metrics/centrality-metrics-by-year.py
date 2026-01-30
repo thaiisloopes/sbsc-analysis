@@ -58,11 +58,11 @@ def subgraph_by_year(G, year):
 # --------------------------------------------------
 # Retorna Top-k de uma centralidade
 # --------------------------------------------------
-def top_k(centrality_dict, k=3):
+def top_k(centrality_dict, k=3, reverse=True):
     return sorted(
         centrality_dict.items(),
         key=lambda x: x[1],
-        reverse=True
+        reverse=reverse
     )[:k]
 
 
@@ -91,8 +91,10 @@ for year in years:
     }
 
     results[year] = {
-        metric: top_k(values, k=3)
-        for metric, values in centralities.items()
+        "degree": top_k(centralities["degree"], k=3, reverse=True),
+        "betweenness": top_k(centralities["betweenness"], k=3, reverse=True),
+        "closeness": top_k(centralities["closeness"], k=3, reverse=False),
+        "eigenvector": top_k(centralities["eigenvector"], k=3, reverse=True),
     }
 
 

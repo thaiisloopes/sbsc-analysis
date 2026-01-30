@@ -99,7 +99,7 @@ def top10_closeness_centrality(G):
     top10 = sorted(
         closeness.items(),
         key=lambda x: x[1],
-        reverse=True
+        reverse=False
     )[:10]
 
     for i, (author, value) in enumerate(top10, 1):
