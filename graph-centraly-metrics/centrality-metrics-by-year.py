@@ -74,14 +74,14 @@ results = {}
 for year in years:
     Gy = subgraph_by_year(sbsc_graph, year)
 
-    # ignora grafos muito pequenos
-    if Gy.number_of_nodes() < 3:
-        continue
+    # # ignora grafos muito pequenos
+    # if Gy.number_of_nodes() < 3:
+    #     continue
 
-    # garante conectividade (boa prática)
-    if not nx.is_connected(Gy):
-        giant = max(nx.connected_components(Gy), key=len)
-        Gy = Gy.subgraph(giant).copy()
+    # # garante conectividade (boa prática)
+    # if not nx.is_connected(Gy):
+    #     giant = max(nx.connected_components(Gy), key=len)
+    #     Gy = Gy.subgraph(giant).copy()
 
     centralities = {
         "degree": nx.degree_centrality(Gy),
